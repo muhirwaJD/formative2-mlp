@@ -276,14 +276,6 @@ with tab3:
     # Make prediction
     if st.button("Get Product Recommendation", type="primary"):
         try:
-            # Display input before encoding
-            st.write("**Input Data (Before Encoding):**")
-            st.dataframe(input_data) # type: ignore
-            # Prepare data (encode categorical variables)
-
-            # Align columns with training data
-            model_features = models['product_model'].feature_names_in_
-            st.write(f"**Model Expected Features:** {model_features}")
 
             # Predict
             prediction = models['product_model'].predict(input_data)
@@ -312,10 +304,6 @@ with tab3:
             st.dataframe(proba_df, use_container_width=True) # type: ignore
             st.bar_chart(proba_df.set_index('Product Category')) # type: ignore
 
-            # Model performance info
-            with st.expander("Model Performance"):
-                st.json(models['model_info']) # type: ignore
-
         except Exception as e:
             st.error(f"Prediction error: {e}")
             st.write("Debug: Check that your model was trained with the correct features")
@@ -332,7 +320,8 @@ with tab4:
         st.stop()
 
     st.info(f"**Pending Recommendation:** {st.session_state.prediction}")
-    st.write("Upload audio saying **'Yes, approve'** or **'Confirm transaction'** to confirm this recommendation")
+    st.write("Upload audio saying"
+    " **'Yes, approve'** or **'Confirm transaction'** to confirm this recommendation")
 
     uploaded_audio = st.file_uploader(
         "Choose an audio file",
@@ -353,14 +342,14 @@ with tab4:
             if voice_choice == "Authorized Voice":
                 st.session_state.voice_authenticated = True
                 st.success("Voice verified! Transaction approved!")
-                
+
                 # Display final approved recommendation
                 st.balloons()
                 st.success(f"### APPROVED: {st.session_state.prediction}")
                 # Show confidence
                 proba_df = pd.DataFrame({
                     'Product Category': models['label_encoder'].classes_, # type: ignore
-                    'Probability': st.session_state.prediction_proba[0]
+                    'Probability': st.session_state.prediction_proba[0] # type: ignore
                 }).sort_values('Probability', ascending=False)
 
                 st.subheader("Final Prediction Confidence")
