@@ -7,6 +7,7 @@ A Streamlit app implementing:
 """
 import json
 from pathlib import Path
+from typing import Dict, Any
 import streamlit as st
 import pandas as pd
 import joblib  # type: ignore
@@ -25,34 +26,38 @@ PROCESSED_DIR = DATA_DIR / "processed"
 
 # Load models and data
 @st.cache_resource
-def load_models():
+def load_models() -> Dict[str, Any] | None:
     """Load all trained models"""
-    models = {}
+    loaded_models = {}
     try:
         # Load model info to determine best model
-        with open(MODEL_DIR / "best_model_info.json", 'r') as f:
-            models['model_info'] = json.load(f)
+        with open(MODEL_DIR / "best_model_info.json", 'r', encoding='utf-8') as f:
+            loaded_models['model_info'] = json.load(f)
 
         # Try to load XGBoost (best model) first
-        best_model_name = models['model_info'].get('best_model_name', 'Random Forest')
+        best_model_name = loaded_models['model_info'].get('best_model_name', 'Random Forest')
 
         if best_model_name == 'XGBoost':
             try:
-                models['product_model'] = joblib.load(MODEL_DIR / "product_recommender_xgb.joblib")
-                models['model_used'] = 'XGBoost'
-            except Exception as xgb_error:
-                st.warning(f"XGBoost model failed to load: {str(xgb_error)[:100]}... Using Random Forest instead.")
-            models['product_model'] = joblib.load(MODEL_DIR / "product_recommender_rf.joblib")
-            models['model_used'] = 'Random Forest (fallback)'
+                loaded_models['product_model'] = joblib.load(MODEL_DIR / "product_recommender_xgb.joblib")
+                loaded_models['model_used'] = 'XGBoost'
+            except FileNotFoundError as e:
+                st.warning(f"XGBoost model file not found: {e}")
+                loaded_models['product_model'] = joblib.load(MODEL_DIR / "product_recommender_rf.joblib")
+                loaded_models['model_used'] = 'Random Forest (fallback)'
+            except joblib.exceptions.JoblibError as e:
+                st.warning(f"Joblib error loading XGBoost: {e}")
+                loaded_models['product_model'] = joblib.load(MODEL_DIR / "product_recommender_rf.joblib")
+                loaded_models['model_used'] = 'Random Forest (fallback)'
         else:
-            models['product_model'] = joblib.load(MODEL_DIR / "product_recommender_rf.joblib")
-            models['model_used'] = 'Random Forest'
+            loaded_models['product_model'] = joblib.load(MODEL_DIR / "product_recommender_rf.joblib")
+            loaded_models['model_used'] = 'Random Forest'
 
-        models['label_encoder'] = joblib.load(MODEL_DIR / "label_encoder.joblib")
+        loaded_models['label_encoder'] = joblib.load(MODEL_DIR / "label_encoder.joblib")
 
-        return models
-    except Exception as e:
-        st.error(f"Error loading models: {e}")
+        return loaded_models
+    except FileNotFoundError as e:
+        st.error(f"Model info file not found: {e}")
     return None
 
 @st.cache_data
