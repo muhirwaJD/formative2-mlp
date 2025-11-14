@@ -1,7 +1,6 @@
 """Model loading utilities for the product recommendation system."""
 
 import json
-import os
 from pathlib import Path
 from typing import Any, Dict
 import joblib  # type: ignore
@@ -13,9 +12,6 @@ import pandas as pd  # type: ignore
 # from tensorflow.keras.models import load_model  # type: ignore
 from PIL import Image  # type: ignore
 
-# Configure TensorFlow environment BEFORE importing it
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TensorFlow warnings
-os.environ['CUDA_VISIBLE_DEVICES'] = ''    # Force CPU-only mode
 
 # Paths
 DATA_DIR = Path("data")
@@ -127,7 +123,7 @@ def load_product_model() -> Dict[str, Any]:
 
 
 # @st.cache_resource
-# def load_face_model():
+# def load_face_model(): # type: ignore
 #     """Load face model with error handling"""
 #     face_model_path = MODELS / "face_classification_model.keras"
 #     class_names_path = MODELS / "face_classification_model_class_names.npy"
@@ -136,11 +132,11 @@ def load_product_model() -> Dict[str, Any]:
 #         return None, None
 
 #     try:
-#         face_model = load_model(face_model_path)
-#         class_names = np.load(class_names_path)
+#         # face_model = load_model(face_model_path) # type: ignore
+#         # class_names = np.load(class_names_path)
 
-#         return face_model, class_names
-#     except Exception as e:
+#         # return face_model, class_names # type: ignore
+#     except Exception:
 #         return None, None
 
 # PROCESSING FUNCTION FOR FACE IMAGES
@@ -191,51 +187,231 @@ def load_voice_model():
         Voice verification model or None if not available
     """
     # Try different possible extensions
-    possible_paths = [
-        MODEL_DIR / "voice_verification_model.joblib",
-        MODEL_DIR / "voice_verification_model.h5",
-        MODEL_DIR / "voice_verification_model.keras",
-    ]
+    voice_model_path = MODELS / "audio_model.pkl"
+    feature_names_path = MODELS / "feature_names.pkl"
+    class_names_path = MODELS / "class_names.pkl"
 
-    for voice_model_path in possible_paths:
-        if voice_model_path.exists():
-            return load_model_file(voice_model_path, "Voice Verification Model")
+    if not all([voice_model_path.exists(),
+                feature_names_path.exists(),
+                class_names_path.exists()]):
+        return None, None, None
 
-    # st.info("Voice verification model not found - using simulation mode")
-    return None
+
+    try:
+        voice_model = joblib.load(voice_model_path)  # type: ignore
+        feature_names = joblib.load(feature_names_path)  # type: ignore
+        class_names = joblib.load(class_names_path)  # type: ignore
+
+        return voice_model, feature_names, class_names
+    except Exception:
+        st.error("Error loading voice model files.")
+        return None, None, None
 
 
 # ==================== AUDIO PROCESSING ====================
 
-def extract_audio_features(audio_file) -> np.ndarray | None: # type: ignore
+def extract_audio_features(audio_file) -> dict | None:  # type: ignore
     """
-    Extract MFCC features from audio file for voice verification.
+    Extract comprehensive audio features from audio file for voice verification.
+    
+    Extracts 97+ features including:
+    - MFCCs (52 features: 13 coefficients × 4 stats)
+    - Spectral features (16 features)
+    - Energy features (8 features)
+    - Zero Crossing Rate (2 features)
+    - Spectral Centroid (2 features)
+    - Chroma features (12 features)
+    - Pitch/F0 features (4 features)
+    - Delta MFCCs (13 features)
     
     Args:
         audio_file: Uploaded audio file
     
     Returns:
-        Numpy array of features or None if extraction failed
+        Dictionary of features or None if extraction failed
     """
     try:
-        # Load audio file
-        y, sr = librosa.load(audio_file, sr=16000)  # type: ignore
+        # Reset file pointer for Streamlit uploaded files
+        if hasattr(audio_file, 'seek'):
+            audio_file.seek(0)
 
-        # Extract MFCCs (13 coefficients)
+        # Load audio file (matching training sample rate)
+        y, sr = librosa.load(audio_file, sr=44100)  # type: ignore
+
+        # Initialize features dictionary
+        features = {}
+
+        # ==================== 1. MFCCs (52 features) ====================
         mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)  # type: ignore
 
-        # Calculate statistics
-        mfcc_mean = np.mean(mfccs, axis=1)  # type: ignore
-        mfcc_std = np.std(mfccs, axis=1)  # type: ignore
+        for i in range(13):
+            mfcc_num = i + 1
+            features[f'mfcc{mfcc_num}_mean'] = np.mean(mfccs[i])  # type: ignore
+            features[f'mfcc{mfcc_num}_std'] = np.std(mfccs[i])  # type: ignore
+            features[f'mfcc{mfcc_num}_min'] = np.min(mfccs[i])  # type: ignore
+            features[f'mfcc{mfcc_num}_max'] = np.max(mfccs[i])  # type: ignore
 
-        # Combine features
-        features = np.concatenate([mfcc_mean, mfcc_std])
+        # ==================== 2. Spectral Rolloff (4 features) ====================
+        rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr)  # type: ignore
+        features['rolloff_mean'] = np.mean(rolloff)  # type: ignore
+        features['rolloff_std'] = np.std(rolloff)  # type: ignore
+        features['rolloff_min'] = np.min(rolloff)  # type: ignore
+        features['rolloff_max'] = np.max(rolloff)  # type: ignore
 
-        return features.reshape(1, -1)  # Reshape for model input
+        # ==================== 3. RMS Energy (4 features) ====================
+        rms_energy = librosa.feature.rms(y=y)  # type: ignore
+        features['energy_mean'] = np.mean(rms_energy)  # type: ignore
+        features['energy_std'] = np.std(rms_energy)  # type: ignore
+        features['energy_min'] = np.min(rms_energy)  # type: ignore
+        features['energy_max'] = np.max(rms_energy)  # type: ignore
+
+        # ==================== 4. Zero Crossing Rate (2 features) ====================
+        zcr = librosa.feature.zero_crossing_rate(y)  # type: ignore
+        features['zcr_mean'] = np.mean(zcr)  # type: ignore
+        features['zcr_std'] = np.std(zcr)  # type: ignore
+
+        # ==================== 5. Spectral Centroid (2 features) ====================
+        centroid = librosa.feature.spectral_centroid(y=y, sr=sr)  # type: ignore
+        features['centroid_mean'] = np.mean(centroid)  # type: ignore
+        features['centroid_std'] = np.std(centroid)  # type: ignore
+
+        # ==================== TOTAL SO FAR: 68 features ====================
+        # This matches your training data, so the code above stays the same
+
+        # ==================== 6. NEW: Chroma Features (12 features) ====================
+        # Represents pitch class distribution (useful for voice timbre)
+        try:
+            chroma = librosa.feature.chroma_stft(y=y, sr=sr)  # type: ignore
+            chroma_mean = np.mean(chroma, axis=1)  # type: ignore
+
+            for i in range(12):
+                features[f'chroma{i+1}_mean'] = chroma_mean[i]  # type: ignore
+        except Exception:
+            # If chroma extraction fails, use zeros
+            for i in range(12):
+                features[f'chroma{i+1}_mean'] = 0.0
+
+        # ==================== 7. NEW: Pitch/F0 Features (4 features) ====================
+        # Fundamental frequency - very distinctive for different speakers
+        try:
+            # Use piptrack for F0 estimation
+            pitches, magnitudes = librosa.piptrack(y=y, sr=sr)  # type: ignore
+
+            # Get pitch values where magnitude is highest
+            pitch_values = []
+            for t in range(pitches.shape[1]):
+                index = magnitudes[:, t].argmax()  # type: ignore
+                pitch = pitches[index, t]
+                if pitch > 0:  # Valid pitch
+                    pitch_values.append(pitch)
+
+            if len(pitch_values) > 0:
+                features['pitch_mean'] = np.mean(pitch_values)  # type: ignore
+                features['pitch_std'] = np.std(pitch_values)  # type: ignore
+                features['pitch_min'] = np.min(pitch_values)  # type: ignore
+                features['pitch_max'] = np.max(pitch_values)  # type: ignore
+            else:
+                features['pitch_mean'] = 0.0
+                features['pitch_std'] = 0.0
+                features['pitch_min'] = 0.0
+                features['pitch_max'] = 0.0
+        except Exception:
+            features['pitch_mean'] = 0.0
+            features['pitch_std'] = 0.0
+            features['pitch_min'] = 0.0
+            features['pitch_max'] = 0.0
+
+        # ==================== 8. NEW: Delta MFCCs (13 features) ====================
+        # Captures how MFCCs change over time (temporal dynamics)
+        try:
+            delta_mfccs = librosa.feature.delta(mfccs)  # type: ignore
+            delta_mean = np.mean(delta_mfccs, axis=1)  # type: ignore
+
+            for i in range(13):
+                features[f'delta_mfcc{i+1}_mean'] = delta_mean[i]  # type: ignore
+        except Exception:
+            for i in range(13):
+                features[f'delta_mfcc{i+1}_mean'] = 0.0
+
+        # ==================== 9. NEW: Spectral Bandwidth (4 features) ====================
+        # Measures the width of the frequency spectrum
+        try:
+            bandwidth = librosa.feature.spectral_bandwidth(y=y, sr=sr)  # type: ignore
+            features['bandwidth_mean'] = np.mean(bandwidth)  # type: ignore
+            features['bandwidth_std'] = np.std(bandwidth)  # type: ignore
+            features['bandwidth_min'] = np.min(bandwidth)  # type: ignore
+            features['bandwidth_max'] = np.max(bandwidth)  # type: ignore
+        except Exception:
+            features['bandwidth_mean'] = 0.0
+            features['bandwidth_std'] = 0.0
+            features['bandwidth_min'] = 0.0
+            features['bandwidth_max'] = 0.0
+
+        # ==================== 10. NEW: Spectral Contrast (4 features) ====================
+        # Difference between peaks and valleys in the spectrum
+        try:
+            contrast = librosa.feature.spectral_contrast(y=y, sr=sr)  # type: ignore
+            features['contrast_mean'] = np.mean(contrast)  # type: ignore
+            features['contrast_std'] = np.std(contrast)  # type: ignore
+            features['contrast_min'] = np.min(contrast)  # type: ignore
+            features['contrast_max'] = np.max(contrast)  # type: ignore
+        except Exception:
+            features['contrast_mean'] = 0.0
+            features['contrast_std'] = 0.0
+            features['contrast_min'] = 0.0
+            features['contrast_max'] = 0.0
+
+        # ==================== TOTAL: 68 + 12 + 4 + 13 + 4 + 4 = 105 features ====================
+
+        return features  # type: ignore
+    
+    except Exception as e:
+        # Log the error for debugging
+        import traceback
+        print(f"Audio feature extraction error: {e}")
+        print(traceback.format_exc())
+        return None
+
+
+# ==================== Voice prediction ====================
+def predict_speaker(voice_model, feature_names, class_names, audio_features): # type: ignore
+    """
+    Predict the speaker from audio features.
+    
+    Args:
+        voice_model: Trained Random Forest model
+        feature_names: List of feature column names (68 features)
+        class_names: List of speaker names
+        audio_features: Dictionary of extracted features
+    
+    Returns:
+        predicted_speaker: Name of the predicted speaker
+        confidence: Probability/confidence of prediction
+    """
+    try:
+        # Convert features dict to DataFrame with correct column order
+        features_df = pd.DataFrame([audio_features])
+
+        # Reorder columns to match training data
+        features_df = features_df[feature_names]  # type: ignore
+
+        # Make prediction
+        prediction = voice_model.predict(features_df)[0] # type: ignore
+
+        # Get prediction probabilities for all classes
+        prediction_proba = voice_model.predict_proba(features_df)[0] # type: ignore
+
+        # Find the index of the predicted class
+        predicted_idx = np.argmax(prediction_proba) # type: ignore
+        confidence = prediction_proba[predicted_idx] # type: ignore
+
+        # Get speaker name
+        predicted_speaker = class_names[predicted_idx] # type: ignore
+
+        return predicted_speaker, confidence, prediction_proba # type: ignore
 
     except Exception:
-        # st.error(f"Error extracting audio features: {e}")
-        return None
+        return None, None, None
 
 
 # ==================== MAIN MODEL LOADER ====================
@@ -250,8 +426,8 @@ def load_all_models() -> Dict[str, Any]:
     """
     # Load each model separately
     product_data = load_product_model()
-    # face_model, class_names = load_face_model() # type: ignore
-    voice_model = load_voice_model()
+    # face_model, face_class_names = load_face_model()  # type: ignore
+    voice_model, feature_names, voice_class_names = load_voice_model()
 
     # Combine into single dictionary
     all_models = { # type: ignore
@@ -263,10 +439,12 @@ def load_all_models() -> Dict[str, Any]:
 
         # Face Authentication models
         # 'face_model': face_model,
-        # 'face_class_names': class_names,
+        # 'face_class_names': face_class_names,
 
         # Voice verification model
         'voice_model': voice_model,
+        'feature_names': feature_names,
+        'voice_class_names': voice_class_names,
     }
 
     return all_models # type: ignore

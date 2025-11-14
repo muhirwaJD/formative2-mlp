@@ -9,3 +9,4 @@ librosa
 xgboost
 joblib
 tensorflow
+pydub

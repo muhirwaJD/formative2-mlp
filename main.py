@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 import pandas as pd
 import streamlit as st
-from utils.load_models import load_all_models, load_data
+from utils.load_models import load_all_models, load_data, extract_audio_features, predict_speaker # type: ignore
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Page configuration
@@ -40,11 +40,13 @@ if 'face_authenticated' not in st.session_state:
 if 'voice_authenticated' not in st.session_state:
     st.session_state.voice_authenticated = False
 if 'current_user' not in st.session_state:
-    st.session_state.current_user = None
+    st.session_state.current_user = "JD"
 if 'prediction' not in st.session_state:
     st.session_state.prediction = None
 if 'prediction_proba' not in st.session_state:
     st.session_state.prediction_proba = None
+if 'voice_attempts' not in st.session_state:
+    st.session_state.voice_attempts = 0
 
 # Main title
 st.title('🛍️ Product Recommendation System')
@@ -90,6 +92,7 @@ with st.sidebar:
         st.session_state.current_user = None
         st.session_state.prediction = None
         st.session_state.prediction_proba = None
+        st.session_state.voice_attempts = 0
         st.rerun()
 
 # Main content area
@@ -343,7 +346,7 @@ with tab2:
                 if st.button("Authenticate Face", type="primary"):
                     if auth_choice == "Authorized User":
                         st.session_state.face_authenticated = True
-                        st.session_state.current_user = "User_001"  # Simulated user ID
+                        st.session_state.current_user = "JD"  # Simulated user ID
                         st.success("Face recognized! (Simulation)")
                         st.success("Proceed to Product Recommendation tab.")
                     else:
@@ -465,49 +468,189 @@ with tab4:
         st.error("Face authentication required first!")
         st.stop()
 
-    if st.session_state.prediction is None:  # type: ignore
+    if st.session_state.prediction is None:
         st.warning("Please get a product recommendation first (Tab 3)")
         st.stop()
 
-    st.info(f"**Pending Recommendation:** {st.session_state.prediction}")  # type: ignore
-    st.write("Upload audio saying"
-    " **'Yes, approve'** or **'Confirm transaction'** to confirm this recommendation")
+    st.info(f"**Pending Recommendation:** {st.session_state.prediction}")
+    st.write("Upload audio saying 'Yes, approve' or 'Confirm transaction' to confirm this recommendation")
+
 
     uploaded_audio = st.file_uploader(
-        "Choose an audio file",
+        "Choose an audio file (WAV recommended)",
         type=['wav', 'mp3', 'ogg', 'mp4'],
         key="audio_upload"
     )
 
     if uploaded_audio is not None:
-        st.audio(uploaded_audio)
+        col1, col2 = st.columns([1, 1])
 
-        # Simulated voice verification (replace with actual voice model)
-        voice_choice = st.radio(
-            "Simulate voice verification result:",
-            ["Authorized Voice", "Unauthorized Voice"]
-        )
+        with col1:
+            st.audio(uploaded_audio)
+            st.caption(f"File: {uploaded_audio.name}")
+            st.caption(f"Size: {uploaded_audio.size / 1024:.2f} KB")
 
-        if st.button("Verify & Approve", type="primary"):
-            if voice_choice == "Authorized Voice":
-                st.session_state.voice_authenticated = True
-                st.success("Voice verified! Transaction approved!")
+        with col2:
+            st.write("### Voice Verification")
 
-                # Display final approved recommendation
-                st.balloons()
-                st.success(f"### APPROVED: {st.session_state.prediction}") # type: ignore
-                # Show confidence
-                proba_df = pd.DataFrame({
-                    'Product Category': models['label_encoder'].classes_, # type: ignore
-                    'Probability': st.session_state.prediction_proba[0] # type: ignore
-                }).sort_values('Probability', ascending=False)
+            if models.get('voice_model') is not None:
+                st.info("Using AI voice verification")
 
-                st.subheader("Final Prediction Confidence")
-                st.dataframe(proba_df, use_container_width=True) # type: ignore
-                st.bar_chart(proba_df.set_index('Product Category')) # type: ignore
+                # Configuration
+                CONFIDENCE_THRESHOLD = 0.70   # 70% minimum confidence
+                MARGIN_THRESHOLD = 0.15       # 15% gap between 1st and 2nd
+                MAX_ATTEMPTS = 3
+
+                if st.button("Verify & Approve", type="primary"):
+                    with st.spinner("Analyzing voice patterns..."):
+                        # Extract audio features
+                        audio_features = extract_audio_features(uploaded_audio)
+
+                        if audio_features is None:
+                            st.error("Failed to extract audio features")
+                            st.error("**Possible reasons:**")
+                            st.error("- Audio file is corrupted or in unsupported format")
+                            st.error("- File is MP4 disguised as WAV")
+                            st.error("- Audio quality is too poor")
+                            st.info("**Tip:** Use real WAV files from `sample_audio` folder")
+                            st.stop()
+
+                        # Predict speaker
+                        speaker, confidence, all_probs = predict_speaker(
+                            models['voice_model'],
+                            models['feature_names'],
+                            models['voice_class_names'],
+                            audio_features
+                        )
+
+                        if speaker is None or confidence is None or all_probs is None:
+                            st.error("Voice recognition failed")
+                            st.error("The model could not process this audio file.")
+                            st.info("Try uploading a clearer audio recording")
+                            st.stop()
+
+                        # Calculate margin between top 2 predictions
+                        sorted_probs = sorted(enumerate(all_probs), key=lambda x: x[1], reverse=True)
+                        first_idx, first_prob = sorted_probs[0]
+                        second_idx, second_prob = sorted_probs[1] if len(sorted_probs) > 1 else (0, 0)
+
+                        predicted_speaker = models['voice_class_names'][first_idx]
+                        margin = first_prob - second_prob
+
+                        # Show detailed results
+                        st.write("---")
+                        st.write("### Voice Analysis Results")
+
+                        # All predictions
+                        with st.expander("View All Predictions"):
+                            for person, prob in zip(models['voice_class_names'], all_probs):
+                                st.write(f"- **{person}**: {prob:.2%}")
+
+                        # Key metrics
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            st.metric("Predicted Speaker", predicted_speaker)
+                            st.metric("Confidence", f"{first_prob:.2%}")
+                        with col_b:
+                            st.metric("Expected User", st.session_state.current_user)
+                            st.metric("Confidence Margin", f"{margin:.2%}")
+
+                        st.write("---")
+                        st.write("### Security Checks")
+
+                        # Multi-condition validation
+                        conditions_met = []
+                        all_passed = True
+
+                        # Condition 1: Speaker matches
+                        if predicted_speaker == st.session_state.current_user:
+                            conditions_met.append("**Speaker Match:** Voice matches expected user")
+                        else:
+                            conditions_met.append(f"**Speaker Mismatch:** Expected `{st.session_state.current_user}`, got `{predicted_speaker}`")
+                            all_passed = False
+
+                        # Condition 2: Confidence threshold
+                        if first_prob >= CONFIDENCE_THRESHOLD:
+                            conditions_met.append(f"**Confidence:** {first_prob:.2%} ≥ {CONFIDENCE_THRESHOLD:.0%} threshold")
+                        else:
+                            conditions_met.append(f"**Low Confidence:** {first_prob:.2%} < {CONFIDENCE_THRESHOLD:.0%} threshold")
+                            all_passed = False
+
+                        # Condition 3: Clear winner (margin check)
+                        if margin >= MARGIN_THRESHOLD:
+                            conditions_met.append(f"**Clear Winner:** {margin:.2%} margin ≥ {MARGIN_THRESHOLD:.0%}")
+                        else:
+                            conditions_met.append(f"**Ambiguous:** {margin:.2%} margin < {MARGIN_THRESHOLD:.0%} (voices too similar)")
+                            # Don't fail on margin alone, just warn
+                            # all_passed = False
+
+                        # Display all conditions
+                        for condition in conditions_met:
+                            if "Yes" in condition:
+                                st.success(condition)
+                            elif "No" in condition:
+                                st.error(condition)
+                            else:
+                                st.warning(condition)
+
+                        st.write("---")
+
+                        # Final decision
+                        if all_passed and predicted_speaker == st.session_state.current_user and first_prob >= CONFIDENCE_THRESHOLD:
+                            st.session_state.voice_authenticated = True
+                            st.session_state.voice_attempts = 0
+
+                            st.success("### VOICE VERIFICATION SUCCESSFUL!")
+                            st.success(f"Voice verified as **{speaker}** with {first_prob:.2%} confidence")
+                            st.success("### TRANSACTION APPROVED!")
+                            st.success(f"**Recommended Product:** {st.session_state.prediction}")
+                            st.balloons()
+
+                        else:
+                            # Failed verification
+                            st.session_state.voice_attempts += 1
+                            remaining = MAX_ATTEMPTS - st.session_state.voice_attempts
+
+                            with st.expander("View Failure Details"):
+                                st.error("### VOICE VERIFICATION FAILED")
+                                st.error("Transaction denied - security checks not passed")
+
+                                if remaining > 0:
+                                    st.warning(f"Attempts Remaining: {remaining}/{MAX_ATTEMPTS}")
+
+                                    st.info("### Tips for Better Results:")
+                                    st.info("- Speak clearly in a quiet environment")
+                                    st.info("- Use a good quality microphone")
+                                    st.info("- Record for at least 2-3 seconds")
+                                    st.info("- Ensure audio file is in real WAV format")
+                                    st.info("- Try files from `sample_audio` folder")
+                                else:
+                                    st.error("### MAXIMUM ATTEMPTS REACHED")
+                                    st.error("Transaction permanently denied.")
+                                    st.error("Please reset authentication and try again.")
+                                    st.session_state.voice_attempts = 0
 
             else:
-                st.error("Voice not recognized. Transaction denied.")
-                st.session_state.voice_authenticated = False
-                st.session_state.prediction = None
-                st.session_state.prediction_proba = None
+                # SIMULATION MODE
+                st.warning("Voice model not available - using simulation mode")
+
+                voice_choice = st.radio(
+                    "Simulate voice verification:",
+                    ["Authorized Voice", "Unauthorized Voice"]
+                )
+
+                if st.button("Verify & Approve", type="primary"):
+                    if voice_choice == "Authorized Voice":
+                        st.session_state.voice_authenticated = True
+                        st.session_state.voice_attempts = 0
+                        st.success("Voice verified! (Simulation)")
+                        st.success(f"### APPROVED: {st.session_state.prediction}")
+                        st.balloons()
+                    else:
+                        st.session_state.voice_authenticated = False
+                        st.session_state.voice_attempts += 1
+                        st.error("Voice not recognized. (Simulation)")
+                        st.error("Transaction denied.")
+
+    if not st.session_state.voice_authenticated:
+        st.info("⏳ Waiting for voice confirmation...")
