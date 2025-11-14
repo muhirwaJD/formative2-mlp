@@ -8,10 +8,9 @@ import numpy as np  # type: ignore
 import librosa  # type: ignore
 import streamlit as st  # type: ignore
 import pandas as pd  # type: ignore
-# import tensorflow as tf  # type: ignore
-# from tensorflow.keras.models import load_model  # type: ignore
 from PIL import Image  # type: ignore
 
+from tensorflow.keras.models import load_model  # type: ignore
 
 # Paths
 DATA_DIR = Path("data")
@@ -122,22 +121,25 @@ def load_product_model() -> Dict[str, Any]:
     return result
 
 
-# @st.cache_resource
-# def load_face_model(): # type: ignore
-#     """Load face model with error handling"""
-#     face_model_path = MODELS / "face_classification_model.keras"
-#     class_names_path = MODELS / "face_classification_model_class_names.npy"
+@st.cache_resource
+def load_face_model(): # type: ignore
+    """Load face model ONLY when called (lazy loading)"""
+    face_model_path = MODELS / "face_classification_model.keras"
+    class_names_path = MODELS / "face_classification_model_class_names.npy"
 
-#     if not face_model_path.exists() or not class_names_path.exists():
-#         return None, None
+    if not face_model_path.exists() or not class_names_path.exists():
+        return None, None
 
-#     try:
-#         # face_model = load_model(face_model_path) # type: ignore
-#         # class_names = np.load(class_names_path)
+    try:
+        # Show loading message
+        with st.spinner("Loading face recognition model (first time only)..."):
+            face_model = load_model(face_model_path, compile=False)  # compile=False is faster # type: ignore
+            class_names = np.load(class_names_path)
 
-#         # return face_model, class_names # type: ignore
-#     except Exception:
-#         return None, None
+        return face_model, class_names # type: ignore
+    except Exception as e:
+        st.error(f"Failed to load face model: {e}")
+        return None, None
 
 # PROCESSING FUNCTION FOR FACE IMAGES
 
@@ -426,7 +428,7 @@ def load_all_models() -> Dict[str, Any]:
     """
     # Load each model separately
     product_data = load_product_model()
-    # face_model, face_class_names = load_face_model()  # type: ignore
+    face_model, face_class_names = load_face_model()  # type: ignore
     voice_model, feature_names, voice_class_names = load_voice_model()
 
     # Combine into single dictionary
@@ -438,8 +440,8 @@ def load_all_models() -> Dict[str, Any]:
         'model_info': product_data['model_info'],
 
         # Face Authentication models
-        # 'face_model': face_model,
-        # 'face_class_names': face_class_names,
+        'face_model': face_model,
+        'face_class_names': face_class_names,
 
         # Voice verification model
         'voice_model': voice_model,

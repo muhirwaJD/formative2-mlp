@@ -5,12 +5,19 @@ A Streamlit app implementing:
 2. Voice Verification Authentication  
 3. Product Recommendation Model
 """
+import os
 from pathlib import Path
 import sys
 import pandas as pd
 import streamlit as st
 from utils.load_models import load_all_models, load_data, extract_audio_features, predict_speaker # type: ignore
 sys.path.insert(0, str(Path(__file__).parent))
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+# Import TensorFlow early and configure it
+import tensorflow as tf # type: ignore
+tf.config.set_visible_devices([], 'GPU')  # Disable GPU/Metal # type: ignore
 
 # Page configuration
 st.set_page_config(
