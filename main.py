@@ -299,13 +299,14 @@ with tab2:
                 if st.button("Authenticate Face", type="primary"):
                     with st.spinner("Analyzing face..."):
                         # Import preprocessing function
-                        from utils.load_models import preprocess_face_image
                         import numpy as np
+                        from utils.load_models import preprocess_face_image
 
                         # Preprocess image
                         processed_image = preprocess_face_image(uploaded_image)
 
                         if processed_image is not None:
+                            import numpy as np
                             try:
                                 # Make prediction
                                 predictions = models['face_model'].predict(processed_image, verbose=0)
