@@ -31,7 +31,6 @@ def load_product_model() -> Dict[str, Any]:
         'model': None,
         'model_used': None,
         'label_encoder': None,
-        'model_info': None,
     }
 
     xgb_path = MODELS / "product_recommender_xgb.joblib"
@@ -376,7 +375,6 @@ def load_all_models() -> Dict[str, Any]:
         'product_model': product_data['model'],
         'model_used': product_data['model_used'],
         'label_encoder': product_data['label_encoder'],
-        'model_info': product_data['model_info'],
 
         # Face Authentication models
         'face_model': face_model,
