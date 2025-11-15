@@ -14,59 +14,15 @@ from tensorflow.keras.models import load_model  # type: ignore
 
 # Paths
 DATA_DIR = Path("data")
-MODEL_DIR = DATA_DIR / "processed" / "models"
 PROCESSED_DIR = DATA_DIR / "processed"
 MODELS = Path("models")
 
-# ==================== HELPER FUNCTIONS ====================
-
-def load_model_file(file_path: Path, model_name: str):
-    """
-    Load a single model file with error handling.
-    
-    Args:
-        file_path: Path to the model file
-        model_name: Name of the model for error messages
-    
-    Returns:
-        Loaded model or None if failed
-    """
-    try:
-        model = joblib.load(file_path)  # type: ignore
-        # st.success(f"{model_name} loaded successfully")
-        return model
-    except FileNotFoundError:
-        # st.warning(f"{model_name} not found at {file_path}")
-        return None
-    except Exception:
-        # st.error(f"Error loading {model_name}: {str(e)[:100]}")
-        return None
-
-
-def load_best_model_info() -> Dict[str, Any]:
-    """
-    Load the best model information from JSON file.
-    
-    Returns:
-        Dictionary containing best model info
-    """
-    try:
-        with open(MODEL_DIR / "best_model_info.json", 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        # st.warning("best_model_info.json not found, using Random Forest as default")
-        return {'best_model_name': 'Random Forest'}
-    except json.JSONDecodeError:
-        # st.error(f"Error reading best_model_info.json: {e}")
-        return {'best_model_name': 'Random Forest'}
-
 
 # ==================== MODEL LOADERS ====================
-
 @st.cache_resource
 def load_product_model() -> Dict[str, Any]:
     """
-    Load the product recommendation model with fallback logic.
+    Load the XGBoost product recommendation model.
     
     Returns:
         Dictionary containing product model and metadata
@@ -74,52 +30,23 @@ def load_product_model() -> Dict[str, Any]:
     result = {
         'model': None,
         'model_used': None,
-        'label_encoder': None,
-        'model_info': None
     }
 
-    # Load model info
-    model_info = load_best_model_info()
-    result['model_info'] = model_info # type: ignore
-    best_model_name = model_info.get('best_model_name', 'Random Forest')
+    xgb_path = MODELS / "product_recommender_xgb.joblib"
 
-    # Try to load the best model first
-    if best_model_name == 'XGBoost':
-        xgb_model = load_model_file(
-            MODEL_DIR / "product_recommender_xgb.joblib",
-            "XGBoost Product Model"
-        )
-
-        if xgb_model is not None:
-            result['model'] = xgb_model
+    if xgb_path.exists():
+        try:
+            result['model'] = joblib.load(xgb_path) # type: ignore
             result['model_used'] = 'XGBoost' # type: ignore
-        else:
-            # Fallback to Random Forest
-            # st.info("Falling back to Random Forest model...")
-            rf_model = load_model_file(
-                MODEL_DIR / "product_recommender_rf.joblib",
-                "Random Forest Product Model"
-            )
-            result['model'] = rf_model
-            result['model_used'] = 'Random Forest (fallback)' # type: ignore
+        except FileNotFoundError:
+            # st.error(f"Failed to load XGBoost model: {e}")
+            result['model'] = None
+            result['model_used'] = 'Failed' # type: ignore
     else:
-        # Load Random Forest directly
-        rf_model = load_model_file(
-            MODEL_DIR / "product_recommender_rf.joblib",
-            "Random Forest Product Model"
-        )
-        result['model'] = rf_model
-        result['model_used'] = 'Random Forest' # type: ignore
-
-    # Load label encoder
-    label_encoder = load_model_file(
-        MODEL_DIR / "label_encoder.joblib",
-        "Label Encoder"
-    )
-    result['label_encoder'] = label_encoder
+        # st.warning(f"XGBoost model not found at {xgb_path}")
+        result['model_used'] = 'Not Found' # type: ignore
 
     return result
-
 
 @st.cache_resource
 def load_face_model(): # type: ignore
