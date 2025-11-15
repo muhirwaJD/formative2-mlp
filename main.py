@@ -10,7 +10,6 @@ from pathlib import Path
 import sys
 import pandas as pd
 import streamlit as st
-import numpy as np
 from utils.load_models import load_all_models, load_data, extract_audio_features, predict_speaker # type: ignore
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -301,6 +300,7 @@ with tab2:
                     with st.spinner("Analyzing face..."):
                         # Import preprocessing function
                         from utils.load_models import preprocess_face_image
+                        import numpy as np
 
                         # Preprocess image
                         processed_image = preprocess_face_image(uploaded_image)
