@@ -550,8 +550,7 @@ with tab4:
 
                         # Show detailed results
                         st.write("---")
-                        with st.expander(" Voice Analysis Results")
-
+                        with st.expander(" Voice Analysis Results"):
                             # All predictions
                             with st.expander("View All Predictions"):
                                 for person, prob in zip(models['voice_class_names'], all_probs):
@@ -567,7 +566,7 @@ with tab4:
                                 st.metric("Confidence Margin", f"{margin:.2%}")
     
                             st.write("---")
-                            with st.expander("Security Checks")
+                            with st.expander("Security Checks"):
     
                                 # Multi-condition validation
                                 conditions_met = []
@@ -618,7 +617,7 @@ with tab4:
 
                             # Show prediction confidence
                             if st.session_state.prediction_proba is not None:
-                                with st.expander("Recommendation Confidence")
+                                with st.expander("Recommendation Confidence"):
                                     proba_df = pd.DataFrame({
                                         'Product Category': models['label_encoder'].classes_,
                                         'Probability': st.session_state.prediction_proba[0]
