@@ -483,7 +483,6 @@ with tab4:
         st.warning("Please get a product recommendation first (Tab 3)")
         st.stop()
 
-    st.info(f"**Pending Recommendation:** {st.session_state.prediction}")
     st.write("Upload audio saying 'Yes, approve' or 'Confirm transaction' to display this recommendation")
 
 
