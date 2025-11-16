@@ -467,13 +467,6 @@ with tab3:
             # }).sort_values('Probability', ascending=False)
 
             # st.dataframe(proba_df, use_container_width=True) # type: ignore
-            with st.expander("📊 View Prediction Confidence Scores"):
-                st.write("*Note: The actual recommendation will be revealed after voice verification*")
-                proba_df = pd.DataFrame({
-                    'Product Category': models['label_encoder'].classes_,
-                    'Probability': prediction_proba[0]
-                }).sort_values('Probability', ascending=False)
-                st.dataframe(proba_df, use_container_width=True)
 
         except Exception as e:
             st.error(f"Prediction error: {e}")
@@ -557,59 +550,59 @@ with tab4:
 
                         # Show detailed results
                         st.write("---")
-                        st.write("### Voice Analysis Results")
+                        with st.expander(" Voice Analysis Results")
 
-                        # All predictions
-                        with st.expander("View All Predictions"):
-                            for person, prob in zip(models['voice_class_names'], all_probs):
-                                st.write(f"- **{person}**: {prob:.2%}")
-
-                        # Key metrics
-                        col_a, col_b = st.columns(2)
-                        with col_a:
-                            st.metric("Predicted Speaker", predicted_speaker)
-                            st.metric("Confidence", f"{first_prob:.2%}")
-                        with col_b:
-                            st.metric("Expected User", st.session_state.current_user)
-                            st.metric("Confidence Margin", f"{margin:.2%}")
-
-                        st.write("---")
-                        st.write("### Security Checks")
-
-                        # Multi-condition validation
-                        conditions_met = []
-                        all_passed = True
-
-                        # Condition 1: Speaker matches
-                        if predicted_speaker == st.session_state.current_user:
-                            conditions_met.append("**Speaker Match:** Voice matches expected user")
-                        else:
-                            conditions_met.append(f"**Speaker Mismatch:** Expected `{st.session_state.current_user}`, got `{predicted_speaker}`")
-                            all_passed = False
-
-                        # Condition 2: Confidence threshold
-                        if first_prob >= CONFIDENCE_THRESHOLD:
-                            conditions_met.append(f"**Confidence:** {first_prob:.2%} ≥ {CONFIDENCE_THRESHOLD:.0%} threshold")
-                        else:
-                            conditions_met.append(f"**Low Confidence:** {first_prob:.2%} < {CONFIDENCE_THRESHOLD:.0%} threshold")
-                            all_passed = False
-
-                        # Condition 3: Clear winner (margin check)
-                        if margin >= MARGIN_THRESHOLD:
-                            conditions_met.append(f"**Clear Winner:** {margin:.2%} margin ≥ {MARGIN_THRESHOLD:.0%}")
-                        else:
-                            conditions_met.append(f"**Ambiguous:** {margin:.2%} margin < {MARGIN_THRESHOLD:.0%} (voices too similar)")
-                            # Don't fail on margin alone, just warn
-                            # all_passed = False
-
-                        # Display all conditions
-                        for condition in conditions_met:
-                            if "Yes" in condition:
-                                st.success(condition)
-                            elif "No" in condition:
-                                st.error(condition)
-                            else:
-                                st.warning(condition)
+                            # All predictions
+                            with st.expander("View All Predictions"):
+                                for person, prob in zip(models['voice_class_names'], all_probs):
+                                    st.write(f"- **{person}**: {prob:.2%}")
+    
+                            # Key metrics
+                            col_a, col_b = st.columns(2)
+                            with col_a:
+                                st.metric("Predicted Speaker", predicted_speaker)
+                                st.metric("Confidence", f"{first_prob:.2%}")
+                            with col_b:
+                                st.metric("Expected User", st.session_state.current_user)
+                                st.metric("Confidence Margin", f"{margin:.2%}")
+    
+                            st.write("---")
+                            with st.expander("Security Checks")
+    
+                                # Multi-condition validation
+                                conditions_met = []
+                                all_passed = True
+        
+                                # Condition 1: Speaker matches
+                                if predicted_speaker == st.session_state.current_user:
+                                    conditions_met.append("**Speaker Match:** Voice matches expected user")
+                                else:
+                                    conditions_met.append(f"**Speaker Mismatch:** Expected `{st.session_state.current_user}`, got `{predicted_speaker}`")
+                                    all_passed = False
+        
+                                # Condition 2: Confidence threshold
+                                if first_prob >= CONFIDENCE_THRESHOLD:
+                                    conditions_met.append(f"**Confidence:** {first_prob:.2%} ≥ {CONFIDENCE_THRESHOLD:.0%} threshold")
+                                else:
+                                    conditions_met.append(f"**Low Confidence:** {first_prob:.2%} < {CONFIDENCE_THRESHOLD:.0%} threshold")
+                                    all_passed = False
+        
+                                # Condition 3: Clear winner (margin check)
+                                if margin >= MARGIN_THRESHOLD:
+                                    conditions_met.append(f"**Clear Winner:** {margin:.2%} margin ≥ {MARGIN_THRESHOLD:.0%}")
+                                else:
+                                    conditions_met.append(f"**Ambiguous:** {margin:.2%} margin < {MARGIN_THRESHOLD:.0%} (voices too similar)")
+                                    # Don't fail on margin alone, just warn
+                                    # all_passed = False
+        
+                                # Display all conditions
+                                for condition in conditions_met:
+                                    if "Yes" in condition:
+                                        st.success(condition)
+                                    elif "No" in condition:
+                                        st.error(condition)
+                                    else:
+                                        st.warning(condition)
 
                         st.write("---")
 
@@ -625,13 +618,13 @@ with tab4:
 
                             # Show prediction confidence
                             if st.session_state.prediction_proba is not None:
-                                st.write("**Recommendation Confidence:**")
-                                proba_df = pd.DataFrame({
-                                    'Product Category': models['label_encoder'].classes_,
-                                    'Probability': st.session_state.prediction_proba[0]
-                                }).sort_values('Probability', ascending=False)
-                                st.dataframe(proba_df, use_container_width=True)
-                                
+                                with st.expander("Recommendation Confidence")
+                                    proba_df = pd.DataFrame({
+                                        'Product Category': models['label_encoder'].classes_,
+                                        'Probability': st.session_state.prediction_proba[0]
+                                    }).sort_values('Probability', ascending=False)
+                                    st.dataframe(proba_df, use_container_width=True)
+
                             st.balloons()
 
                         else:
