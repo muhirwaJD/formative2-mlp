@@ -1,15 +1,8 @@
 #!/usr/bin/env python3
+import tensorflow as tf # type: ignore
 
-# In your terminal or in a Python script
-import pandas as pd
-import joblib
+print("TensorFlow version:", tf.__version__)
 
-df = pd.read_csv('data/processed/merged_customer_data.csv')
-label_encoder = joblib.load('data/processed/models/label_encoder.joblib')
-
-dataset_categories = set(df['product_category'].unique())
-encoder_categories = set(label_encoder.classes_)
-
-print("Categories in dataset:", dataset_categories)
-print("Categories in encoder:", encoder_categories)
-print("Missing in encoder:", dataset_categories - encoder_categories)
+for device in ['CPU', 'GPU']:
+    devices = tf.config.list_physical_devices(device) # type: ignore
+    print(f"Available {device} devices:", devices) # type: ignore
