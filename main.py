@@ -467,15 +467,13 @@ with tab3:
             # }).sort_values('Probability', ascending=False)
 
             # st.dataframe(proba_df, use_container_width=True) # type: ignore
-
-             with st.expander("📊 View Prediction Confidence Scores"):
+            with st.expander("📊 View Prediction Confidence Scores"):
                 st.write("*Note: The actual recommendation will be revealed after voice verification*")
                 proba_df = pd.DataFrame({
                     'Product Category': models['label_encoder'].classes_,
                     'Probability': prediction_proba[0]
                 }).sort_values('Probability', ascending=False)
                 st.dataframe(proba_df, use_container_width=True)
-
 
         except Exception as e:
             st.error(f"Prediction error: {e}")
