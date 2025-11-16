@@ -450,17 +450,31 @@ with tab3:
             st.session_state.prediction_proba = prediction_proba
 
             # Display results
-            st.success(f"### Recommended Product: **{predicted_category}**")
-            st.info("**Please proceed to Voice Confirmation tab to approve this recommendation**")
+            # st.success(f"### Recommended Product: **{predicted_category}**")
+            # st.info("**Please proceed to Voice Confirmation tab to approve this recommendation**")
+
+            # ONLY show that recommendation is ready (not what it is!)
+            st.success("### Recommendation Generated!")
+            st.warning("**Recommendation is pending voice verification**")
+            st.info("**Please proceed to Voice Confirmation tab to approve and view your recommendation**")
+            
 
             # Show probabilities
-            st.subheader("Prediction Confidence")
-            proba_df = pd.DataFrame({
-                'Product Category': models['label_encoder'].classes_, # type: ignore
-                'Probability': prediction_proba[0]
-            }).sort_values('Probability', ascending=False)
+            # st.subheader("Prediction Confidence")
+            # proba_df = pd.DataFrame({
+            #     'Product Category': models['label_encoder'].classes_, # type: ignore
+            #     'Probability': prediction_proba[0]
+            # }).sort_values('Probability', ascending=False)
 
-            st.dataframe(proba_df, use_container_width=True) # type: ignore
+            # st.dataframe(proba_df, use_container_width=True) # type: ignore
+
+             with st.expander("📊 View Prediction Confidence Scores"):
+                st.write("*Note: The actual recommendation will be revealed after voice verification*")
+                proba_df = pd.DataFrame({
+                    'Product Category': models['label_encoder'].classes_,
+                    'Probability': prediction_proba[0]
+                }).sort_values('Probability', ascending=False)
+                st.dataframe(proba_df, use_container_width=True)
 
 
         except Exception as e:
@@ -479,7 +493,7 @@ with tab4:
         st.stop()
 
     st.info(f"**Pending Recommendation:** {st.session_state.prediction}")
-    st.write("Upload audio saying 'Yes, approve' or 'Confirm transaction' to confirm this recommendation")
+    st.write("Upload audio saying 'Yes, approve' or 'Confirm transaction' to display this recommendation")
 
 
     uploaded_audio = st.file_uploader(
@@ -610,6 +624,16 @@ with tab4:
                             st.success(f"Voice verified as **{speaker}** with {first_prob:.2%} confidence")
                             st.success("### TRANSACTION APPROVED!")
                             st.success(f"**Recommended Product:** {st.session_state.prediction}")
+
+                            # Show prediction confidence
+                            if st.session_state.prediction_proba is not None:
+                                st.write("**Recommendation Confidence:**")
+                                proba_df = pd.DataFrame({
+                                    'Product Category': models['label_encoder'].classes_,
+                                    'Probability': st.session_state.prediction_proba[0]
+                                }).sort_values('Probability', ascending=False)
+                                st.dataframe(proba_df, use_container_width=True)
+                                
                             st.balloons()
 
                         else:
