@@ -507,8 +507,8 @@ with tab4:
                 st.info("Using AI voice verification")
 
                 # Configuration
-                CONFIDENCE_THRESHOLD = 0.70   # 70% minimum confidence
-                MARGIN_THRESHOLD = 0.15       # 15% gap between 1st and 2nd
+                CONFIDENCE_THRESHOLD = 0.60   # 70% minimum confidence
+                MARGIN_THRESHOLD = 0.10       # 10% gap between 1st and 2nd
                 MAX_ATTEMPTS = 3
 
                 if st.button("Verify & Approve", type="primary"):
